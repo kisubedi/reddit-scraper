@@ -29,10 +29,25 @@ async function scrape() {
     console.log(`\n[1/4] Fetching posts from r/${SUBREDDIT}...`);
     const url = `https://www.reddit.com/r/${SUBREDDIT}/new.json?limit=100`;
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'reddit-scraper/1.0' }
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+      }
     });
 
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`Reddit API returned ${response.status}: ${text.substring(0, 200)}`);
+      throw new Error(`Reddit API error: ${response.status}`);
+    }
+
     const json = await response.json();
+
+    if (!json.data || !json.data.children) {
+      console.error('Unexpected response structure:', JSON.stringify(json).substring(0, 200));
+      throw new Error('Invalid Reddit API response');
+    }
+
     const posts = json.data.children.map(child => child.data);
 
     const cutoffTime = Date.now() - (HOURS_AGO * 60 * 60 * 1000);
