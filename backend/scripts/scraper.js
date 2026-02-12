@@ -5,7 +5,8 @@ import fetch from 'node-fetch';
 dotenv.config();
 
 const SUBREDDIT = 'copilotstudio';
-const HOURS_AGO = 168; // 7 days
+const HOURS_AGO = 8760; // 365 days (1 year)
+const TARGET_POSTS = 500; // Target number of posts to fetch
 
 // Keywords for categorization
 const categoryKeywords = {
@@ -29,7 +30,8 @@ const categoryKeywords = {
   'UI / UX Bugs & Authoring Issues': ['ui', 'ux', 'bug', 'interface', 'authoring', 'studio', 'editor', 'canvas', 'visual', 'designer', 'ui bug'],
   'Templates / Samples / Best Practices': ['template', 'sample', 'example', 'best practice', 'pattern', 'recommendation', 'guide', 'how to'],
   'Feature Requests / Ideas': ['feature request', 'idea', 'suggestion', 'wishlist', 'enhancement', 'improvement', 'could we', 'would be nice'],
-  'Announcements / Updates / Meta': ['announcement', 'update', 'release', 'version', 'changelog', 'roadmap', 'coming soon', 'new', 'meta', 'subreddit']
+  'Announcements / Updates / Meta': ['announcement', 'update', 'release', 'version', 'changelog', 'roadmap', 'coming soon', 'new', 'meta', 'subreddit'],
+  'General': [] // Fallback category with no keywords
 };
 
 async function scrape() {
@@ -39,35 +41,62 @@ async function scrape() {
   console.log('='.repeat(60));
 
   try {
-    // Fetch posts from Reddit
+    // Fetch posts from Reddit with pagination
     console.log(`\n[1/4] Fetching posts from r/${SUBREDDIT}...`);
-    const url = `https://www.reddit.com/r/${SUBREDDIT}/new.json?limit=100`;
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json'
-      }
-    });
+    console.log(`Target: ${TARGET_POSTS} posts from last ${Math.floor(HOURS_AGO / 24)} days`);
 
-    if (!response.ok) {
-      const text = await response.text();
-      console.error(`Reddit API returned ${response.status}: ${text.substring(0, 200)}`);
-      throw new Error(`Reddit API error: ${response.status}`);
-    }
-
-    const json = await response.json();
-
-    if (!json.data || !json.data.children) {
-      console.error('Unexpected response structure:', JSON.stringify(json).substring(0, 200));
-      throw new Error('Invalid Reddit API response');
-    }
-
-    const posts = json.data.children.map(child => child.data);
-
+    let allPosts = [];
+    let after = null;
+    let pageCount = 0;
     const cutoffTime = Date.now() - (HOURS_AGO * 60 * 60 * 1000);
-    const recentPosts = posts.filter(post => (post.created_utc * 1000) >= cutoffTime);
 
-    console.log(`Found ${recentPosts.length} posts from last ${HOURS_AGO} hours`);
+    // Fetch multiple pages until we have enough posts
+    while (allPosts.length < TARGET_POSTS && pageCount < 10) {
+      pageCount++;
+      const url = `https://www.reddit.com/r/${SUBREDDIT}/new.json?limit=100${after ? `&after=${after}` : ''}`;
+
+      console.log(`  Fetching page ${pageCount}...`);
+
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error(`Reddit API returned ${response.status}: ${text.substring(0, 200)}`);
+        break;
+      }
+
+      const json = await response.json();
+
+      if (!json.data || !json.data.children) {
+        console.error('Unexpected response structure');
+        break;
+      }
+
+      const pagePosts = json.data.children.map(child => child.data);
+      const recentPagePosts = pagePosts.filter(post => (post.created_utc * 1000) >= cutoffTime);
+
+      allPosts.push(...recentPagePosts);
+      after = json.data.after;
+
+      console.log(`    Got ${recentPagePosts.length} posts (total: ${allPosts.length})`);
+
+      // If no more pages, stop
+      if (!after || recentPagePosts.length === 0) {
+        console.log(`  No more posts available`);
+        break;
+      }
+
+      // Add delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+
+    const recentPosts = allPosts;
+    console.log(`\nTotal fetched: ${recentPosts.length} posts`);
 
     // Get categories
     console.log('\n[2/4] Loading categories...');
@@ -120,8 +149,14 @@ async function scrape() {
 
       // Categorize
       const text = `${post.title} ${post.selftext}`.toLowerCase();
+      const assignments = [];
+
       for (const category of categories) {
         const keywords = categoryKeywords[category.name] || [];
+
+        // Skip General category in initial matching
+        if (category.name === 'General') continue;
+
         let score = 0;
 
         for (const keyword of keywords) {
@@ -132,15 +167,32 @@ async function scrape() {
         if (score > 0) {
           const confidence = Math.min(score / (keywords.length * 4) * 2.5, 0.98);
           if (confidence >= 0.25) {
-            await supabase
-              .from('post_categories')
-              .insert({
-                post_id: inserted.id,
-                category_id: category.id,
-                confidence
-              });
+            assignments.push({
+              post_id: inserted.id,
+              category_id: category.id,
+              confidence
+            });
           }
         }
+      }
+
+      // If no categories matched, assign to General
+      if (assignments.length === 0) {
+        const generalCategory = categories.find(c => c.name === 'General');
+        if (generalCategory) {
+          assignments.push({
+            post_id: inserted.id,
+            category_id: generalCategory.id,
+            confidence: 0.30
+          });
+        }
+      }
+
+      // Insert all categorizations
+      if (assignments.length > 0) {
+        await supabase
+          .from('post_categories')
+          .insert(assignments);
       }
 
       newCount++;

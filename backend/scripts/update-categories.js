@@ -24,7 +24,8 @@ const newCategories = [
   'UI / UX Bugs & Authoring Issues',
   'Templates / Samples / Best Practices',
   'Feature Requests / Ideas',
-  'Announcements / Updates / Meta'
+  'Announcements / Updates / Meta',
+  'General'
 ];
 
 async function updateCategories() {

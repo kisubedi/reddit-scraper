@@ -25,7 +25,8 @@ const categoryKeywords = {
   'UI / UX Bugs & Authoring Issues': ['ui', 'ux', 'bug', 'interface', 'authoring', 'studio', 'editor', 'canvas', 'visual', 'designer', 'ui bug'],
   'Templates / Samples / Best Practices': ['template', 'sample', 'example', 'best practice', 'pattern', 'recommendation', 'guide', 'how to'],
   'Feature Requests / Ideas': ['feature request', 'idea', 'suggestion', 'wishlist', 'enhancement', 'improvement', 'could we', 'would be nice'],
-  'Announcements / Updates / Meta': ['announcement', 'update', 'release', 'version', 'changelog', 'roadmap', 'coming soon', 'new', 'meta', 'subreddit']
+  'Announcements / Updates / Meta': ['announcement', 'update', 'release', 'version', 'changelog', 'roadmap', 'coming soon', 'new', 'meta', 'subreddit'],
+  'General': [] // Fallback category with no keywords
 };
 
 async function reclassify() {
@@ -63,6 +64,10 @@ async function reclassify() {
 
       for (const category of categories) {
         const keywords = categoryKeywords[category.name] || [];
+
+        // Skip General category in initial matching
+        if (category.name === 'General') continue;
+
         let score = 0;
 
         for (const keyword of keywords) {
@@ -83,6 +88,25 @@ async function reclassify() {
         }
       }
 
+      // If no categories matched, assign to General
+      if (assignments.length === 0) {
+        const generalCategory = categories.find(c => c.name === 'General');
+        if (generalCategory) {
+          assignments.push({
+            post_id: post.id,
+            category_id: generalCategory.id,
+            category_name: 'General',
+            confidence: 0.30
+          });
+        }
+      }
+
+      // Delete old categories first
+      await supabase
+        .from('post_categories')
+        .delete()
+        .eq('post_id', post.id);
+
       if (assignments.length > 0) {
         // Insert categorizations
         const inserts = assignments.map(a => ({
@@ -96,16 +120,15 @@ async function reclassify() {
           .insert(inserts);
 
         if (error) {
-          console.error(`✗ Error categorizing: ${post.title.substring(0, 50)}...`);
+          console.error(`✗ Error: ${error.message.substring(0, 50)}`);
         } else {
           const categoryNames = assignments
-            .map(a => `${a.category_name} (${(a.confidence * 100).toFixed(0)}%)`)
+            .map(a => `${a.category_name.substring(0, 25)} (${(a.confidence * 100).toFixed(0)}%)`)
             .join(', ');
-          console.log(`✓ "${post.title.substring(0, 50)}..." → ${categoryNames}`);
+          console.log(`✓ "${post.title.substring(0, 40)}..." → ${categoryNames.substring(0, 80)}`);
           successCount++;
         }
       } else {
-        console.log(`⊘ "${post.title.substring(0, 50)}..." → No categories`);
         skippedCount++;
       }
 
