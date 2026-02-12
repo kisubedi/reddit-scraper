@@ -251,7 +251,13 @@ async function scrape() {
   }
 }
 
-scrape().catch(error => {
-  console.error('Unhandled error:', error);
-  process.exit(1);
-});
+// Export for use in cron jobs
+export { scrape };
+
+// Run immediately if called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  scrape().catch(error => {
+    console.error('Unhandled error:', error);
+    process.exit(1);
+  });
+}

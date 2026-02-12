@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import cron from 'node-cron';
 import { supabase, testConnection } from './config/database.js';
+import { scrape } from '../scripts/scraper.js';
 
 dotenv.config();
 
@@ -241,6 +243,49 @@ app.get('/api/categories', async (req, res) => {
   }
 });
 
+// Manual scraper trigger (for testing)
+app.post('/api/scraper/trigger', async (req, res) => {
+  console.log('\n🔄 [MANUAL] Manual scrape triggered via API...');
+
+  // Start scraping in background, don't wait for completion
+  scrape()
+    .then(() => console.log('✅ [MANUAL] Manual scrape completed'))
+    .catch(error => console.error('❌ [MANUAL] Manual scrape failed:', error.message));
+
+  // Return immediately
+  res.json({
+    message: 'Scraping started in background',
+    status: 'running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Get scraper status
+app.get('/api/scraper/status', async (req, res) => {
+  try {
+    // Get last scraping time by checking newest post's scraped_at
+    const { data: latestPost } = await supabase
+      .from('posts')
+      .select('scraped_at')
+      .order('scraped_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    const { count: totalPosts } = await supabase
+      .from('posts')
+      .select('*', { count: 'exact', head: true });
+
+    res.json({
+      lastScraped: latestPost?.scraped_at || null,
+      totalPosts: totalPosts || 0,
+      nextScheduled: '00:00 UTC daily',
+      status: 'active'
+    });
+  } catch (error) {
+    res.status(500).json({ error: { message: error.message } });
+  }
+});
+
 // Get analytics summary
 app.get('/api/analytics/summary', async (req, res) => {
   try {
@@ -283,3 +328,23 @@ app.get('/api/analytics/summary', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
+
+// Schedule daily scraping at midnight UTC
+// Cron format: minute hour day month weekday
+// '0 0 * * *' = Every day at 00:00 UTC
+cron.schedule('0 0 * * *', async () => {
+  console.log('\n🕐 [CRON] Starting scheduled Reddit scrape...');
+  console.log(`⏰ [CRON] Time: ${new Date().toISOString()}`);
+
+  try {
+    await scrape();
+    console.log('✅ [CRON] Scheduled scrape completed successfully\n');
+  } catch (error) {
+    console.error('❌ [CRON] Scheduled scrape failed:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: "UTC"
+});
+
+console.log('⏰ Cron job scheduled: Daily scrape at 00:00 UTC');
