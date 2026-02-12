@@ -1,13 +1,9 @@
 import dotenv from 'dotenv';
 import { supabase } from '../src/config/database.js';
-import fetch from 'node-fetch';
 
 dotenv.config();
 
-const SUBREDDIT = 'copilotstudio';
-const HOURS_AGO = 168; // 7 days
-
-// Keywords for categorization
+// Same keywords as scraper.js
 const categoryKeywords = {
   'Knowledge': ['knowledge', 'knowledge source', 'knowledge base', 'documents', 'files', 'upload', 'sharepoint', 'onedrive', 'semantic', 'search', 'rag', 'retrieval', 'grounding', 'citation'],
   'Triggers': ['trigger', 'event', 'webhook', 'start', 'invoke', 'when', 'on message', 'conversation start'],
@@ -32,138 +28,103 @@ const categoryKeywords = {
   'Announcements / Updates / Meta': ['announcement', 'update', 'release', 'version', 'changelog', 'roadmap', 'coming soon', 'new', 'meta', 'subreddit']
 };
 
-async function scrape() {
+async function reclassify() {
   console.log('='.repeat(60));
-  console.log('Reddit Scraper - r/' + SUBREDDIT);
-  console.log('Started at:', new Date().toISOString());
+  console.log('Reclassifying Posts with New Categories');
   console.log('='.repeat(60));
 
   try {
-    // Fetch posts from Reddit
-    console.log(`\n[1/4] Fetching posts from r/${SUBREDDIT}...`);
-    const url = `https://www.reddit.com/r/${SUBREDDIT}/new.json?limit=100`;
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json'
-      }
-    });
+    // Get all posts
+    console.log('\n[1/2] Fetching all posts...');
+    const { data: posts, error: postsError } = await supabase
+      .from('posts')
+      .select('*');
 
-    if (!response.ok) {
-      const text = await response.text();
-      console.error(`Reddit API returned ${response.status}: ${text.substring(0, 200)}`);
-      throw new Error(`Reddit API error: ${response.status}`);
-    }
-
-    const json = await response.json();
-
-    if (!json.data || !json.data.children) {
-      console.error('Unexpected response structure:', JSON.stringify(json).substring(0, 200));
-      throw new Error('Invalid Reddit API response');
-    }
-
-    const posts = json.data.children.map(child => child.data);
-
-    const cutoffTime = Date.now() - (HOURS_AGO * 60 * 60 * 1000);
-    const recentPosts = posts.filter(post => (post.created_utc * 1000) >= cutoffTime);
-
-    console.log(`Found ${recentPosts.length} posts from last ${HOURS_AGO} hours`);
+    if (postsError) throw postsError;
+    console.log(`Found ${posts.length} posts`);
 
     // Get categories
-    console.log('\n[2/4] Loading categories...');
-    const { data: categories } = await supabase
+    console.log('\n[2/2] Categorizing posts...');
+    const { data: categories, error: catError } = await supabase
       .from('categories')
       .select('*')
       .eq('is_active', true);
 
-    console.log(`Active categories: ${categories.length}`);
+    if (catError) throw catError;
+    console.log(`Active categories: ${categories.length}\n`);
 
-    // Insert posts
-    console.log('\n[3/4] Inserting posts...');
-    let newCount = 0;
-    let skipCount = 0;
+    let successCount = 0;
+    let skippedCount = 0;
 
-    for (const post of recentPosts) {
-      const { data: existing } = await supabase
-        .from('posts')
-        .select('id')
-        .eq('reddit_id', post.id)
-        .single();
+    for (const post of posts) {
+      const text = `${post.title} ${post.content}`.toLowerCase();
+      const title = post.title.toLowerCase();
+      const assignments = [];
 
-      if (existing) {
-        skipCount++;
-        continue;
-      }
-
-      const { data: inserted, error } = await supabase
-        .from('posts')
-        .insert({
-          reddit_id: post.id,
-          title: post.title,
-          content: post.selftext || '',
-          author: post.author,
-          score: post.score,
-          num_comments: post.num_comments,
-          url: `https://reddit.com${post.permalink}`,
-          permalink: `https://reddit.com${post.permalink}`,
-          thumbnail: post.thumbnail || null,
-          link_flair_text: post.link_flair_text || null,
-          created_at: new Date(post.created_utc * 1000).toISOString()
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error(`Error inserting post ${post.id}:`, error.message);
-        continue;
-      }
-
-      // Categorize
-      const text = `${post.title} ${post.selftext}`.toLowerCase();
       for (const category of categories) {
         const keywords = categoryKeywords[category.name] || [];
         let score = 0;
 
         for (const keyword of keywords) {
-          if (post.title.toLowerCase().includes(keyword.toLowerCase())) score += 3;
+          if (title.includes(keyword.toLowerCase())) score += 3;
           if (text.includes(keyword.toLowerCase())) score += 1;
         }
 
         if (score > 0) {
           const confidence = Math.min(score / (keywords.length * 4) * 2.5, 0.98);
           if (confidence >= 0.25) {
-            await supabase
-              .from('post_categories')
-              .insert({
-                post_id: inserted.id,
-                category_id: category.id,
-                confidence
-              });
+            assignments.push({
+              post_id: post.id,
+              category_id: category.id,
+              category_name: category.name,
+              confidence
+            });
           }
         }
       }
 
-      newCount++;
+      if (assignments.length > 0) {
+        // Insert categorizations
+        const inserts = assignments.map(a => ({
+          post_id: a.post_id,
+          category_id: a.category_id,
+          confidence: a.confidence
+        }));
+
+        const { error } = await supabase
+          .from('post_categories')
+          .insert(inserts);
+
+        if (error) {
+          console.error(`✗ Error categorizing: ${post.title.substring(0, 50)}...`);
+        } else {
+          const categoryNames = assignments
+            .map(a => `${a.category_name} (${(a.confidence * 100).toFixed(0)}%)`)
+            .join(', ');
+          console.log(`✓ "${post.title.substring(0, 50)}..." → ${categoryNames}`);
+          successCount++;
+        }
+      } else {
+        console.log(`⊘ "${post.title.substring(0, 50)}..." → No categories`);
+        skippedCount++;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
 
-    console.log(`\nNew posts: ${newCount}`);
-    console.log(`Skipped (existing): ${skipCount}`);
-
     console.log('\n' + '='.repeat(60));
-    console.log('Scraping Complete');
-    console.log(`Completed at: ${new Date().toISOString()}`);
+    console.log('Reclassification Complete!');
+    console.log(`Successfully categorized: ${successCount}/${posts.length}`);
+    console.log(`Skipped (no match): ${skippedCount}/${posts.length}`);
     console.log('='.repeat(60));
 
   } catch (error) {
     console.error('\n' + '='.repeat(60));
-    console.error('Scraping Failed');
+    console.error('Reclassification Failed');
     console.error('Error:', error.message);
     console.error('='.repeat(60));
     process.exit(1);
   }
 }
 
-scrape().catch(error => {
-  console.error('Unhandled error:', error);
-  process.exit(1);
-});
+reclassify();

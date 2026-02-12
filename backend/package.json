@@ -8,7 +8,8 @@
     "start": "node src/index.js",
     "dev": "node src/index.js",
     "scrape": "node scripts/scraper.js",
-    "reclassify": "node scripts/reclassify.js"
+    "reclassify": "node scripts/reclassify.js",
+    "update-categories": "node scripts/update-categories.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
