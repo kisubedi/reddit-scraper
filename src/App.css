@@ -444,6 +444,111 @@ body {
   background: var(--bg-secondary);
 }
 
+/* Hierarchical Categories */
+.hierarchical-categories {
+  margin-top: 0.5rem;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.category-item {
+  padding: 0.75rem;
+  cursor: pointer;
+  border-radius: 4px;
+  margin-bottom: 0.25rem;
+  transition: background-color 0.2s;
+  font-weight: 500;
+}
+
+.category-item:hover {
+  background: var(--bg-secondary);
+}
+
+.category-item.active {
+  background: var(--primary-color);
+  color: white;
+}
+
+.category-parent {
+  margin-bottom: 0.5rem;
+}
+
+.category-parent-header {
+  padding: 0.75rem;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  background: var(--bg-secondary);
+  transition: background-color 0.2s;
+}
+
+.category-parent-header:hover {
+  background: var(--border-color);
+}
+
+.expand-icon {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  width: 12px;
+  display: inline-block;
+}
+
+.category-children {
+  margin-left: 1.5rem;
+  margin-top: 0.25rem;
+}
+
+.category-child {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  border-radius: 4px;
+  margin-bottom: 0.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.2s;
+}
+
+.category-child:hover {
+  background: var(--bg-secondary);
+}
+
+.category-child.active {
+  background: var(--primary-color);
+  color: white;
+}
+
+.category-child .category-count {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.category-child.active .category-count {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* AI Summary in PostCard */
+.post-summary {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.summary-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
 @media (max-width: 968px) {
   .analytics-container {
     padding: 0 1rem;

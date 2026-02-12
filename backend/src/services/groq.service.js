@@ -7,30 +7,57 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
-// Categories for classification
-const CATEGORIES = [
-  'Knowledge',
-  'Triggers',
-  'Flows',
-  'Actions / Tools',
-  'Topics',
-  'CUA',
-  'Licensing',
-  'Quotas / Limits / Entitlements',
-  'Evals',
-  'GenAI Quality / Reliability / Hallucinations',
-  'Data Sources & Grounding',
-  'Integrations',
-  'Publishing / Channels',
-  'Authentication / Authorization / Identity',
-  'Governance / Compliance / Admin Controls',
-  'Performance / Latency / Timeouts / Throttling',
-  'DevEx / ALM / Pro‑dev / Source Control',
-  'UI / UX Bugs & Authoring Issues',
-  'Templates / Samples / Best Practices',
-  'Feature Requests / Ideas',
-  'Announcements / Updates / Meta',
-  'General'
+// Hierarchical categories for classification (subcategories only - these are what posts get assigned to)
+const SUBCATEGORIES = [
+  // Agent Development
+  'Agent Architecture',
+  'Agent Deployment',
+  'Agent Management',
+
+  // Knowledge Management
+  'Knowledge Source Integration',
+  'Knowledge Retrieval',
+  'Knowledge Formatting',
+
+  // Integration and Connectivity
+  'Microsoft Teams Integration',
+  'Power Automate and Power Apps',
+  'Dataverse and SharePoint Connectivity',
+
+  // Troubleshooting and Debugging
+  'Agent Errors and Issues',
+  'Debugging Techniques',
+  'Error Messaging and Logging',
+
+  // Best Practices and Optimization
+  'Agent Performance Optimization',
+  'Security and Governance',
+  'User Experience and Adoption',
+
+  // Technical Capabilities and Features
+  'AI and Machine Learning',
+  'Natural Language Processing',
+  'Adaptive Cards and UI',
+
+  // Community and Support
+  'Community Forums and Discussions',
+  'Microsoft Support and Resources',
+  'User-Generated Content and Sharing',
+
+  // Planning and Strategy
+  'Solution Design and Planning',
+  'Change Management and Adoption',
+  'ROI and Value Measurement',
+
+  // Education and Training
+  'Official Microsoft Training',
+  'Community-Generated Content and Tutorials',
+  'Best Practices for Learning and Development',
+
+  // Release and Updates
+  'Release Notes and Updates',
+  'New Feature Requests and Feedback',
+  'Upgrade and Migration Strategies'
 ];
 
 /**
@@ -43,10 +70,10 @@ export async function classifyPost(title, content) {
   try {
     const text = `${title}\n${content}`.substring(0, 1000);
 
-    const prompt = `You are a category classifier for r/CopilotStudio Reddit posts. Analyze the post and assign it to 1-3 most relevant categories.
+    const prompt = `You are a category classifier for r/CopilotStudio Reddit posts. Analyze the post and assign it to 1-3 most relevant SUBCATEGORIES (be specific, not generic).
 
-**Available Categories:**
-${CATEGORIES.join(', ')}
+**Available Subcategories:**
+${SUBCATEGORIES.join(', ')}
 
 **Post:**
 Title: ${title}
@@ -93,14 +120,14 @@ Content: ${content.substring(0, 500)}
     // Validate and filter results
     const classifications = parsed.categories || [];
     const validClassifications = classifications
-      .filter(c => CATEGORIES.includes(c.name) && c.confidence >= 0.25)
+      .filter(c => SUBCATEGORIES.includes(c.name) && c.confidence >= 0.25)
       .map(c => ({
         name: c.name,
         confidence: Math.min(c.confidence, 0.98)
       }));
 
     if (validClassifications.length === 0) {
-      return [{ name: 'General', confidence: 0.30 }];
+      return [{ name: 'Community Forums and Discussions', confidence: 0.30 }]; // Fallback to most generic subcategory
     }
 
     return validClassifications;

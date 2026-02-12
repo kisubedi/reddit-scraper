@@ -27,8 +27,9 @@ const PostCard = ({ post }) => {
     score,
     num_comments,
     content,
+    ai_summary,
     permalink,
-    categories = []
+    post_categories = []
   } = post;
 
   return (
@@ -45,27 +46,41 @@ const PostCard = ({ post }) => {
           <span className="post-date">{formatDate(created_at)}</span>
         </div>
 
-        {content && content.length > 0 && (
+        {ai_summary && (
+          <p className="post-summary">
+            <span className="summary-icon">🤖</span>
+            {ai_summary}
+          </p>
+        )}
+
+        {!ai_summary && content && content.length > 0 && (
           <p className="post-preview">
             {content.length > 200 ? `${content.substring(0, 200)}...` : content}
           </p>
         )}
 
-        {categories && categories.length > 0 && (
+        {post_categories && post_categories.length > 0 && (
           <div className="post-categories">
-            <span className="categories-label">Categories:</span>
-            {categories.map((cat, index) => (
-              <span
-                key={index}
-                className="category-tag"
-                title={`Confidence: ${(cat.confidence * 100).toFixed(1)}%`}
-              >
-                {cat.category_name}
-                <span className="confidence-badge">
-                  {(cat.confidence * 100).toFixed(0)}%
+            {post_categories.map((pc, index) => {
+              const category = pc.categories;
+              const parentName = category.categories?.[0]?.name || null;
+              const displayName = parentName
+                ? `${parentName} › ${category.name}`
+                : category.name;
+
+              return (
+                <span
+                  key={index}
+                  className="category-tag"
+                  title={`Confidence: ${(pc.confidence * 100).toFixed(1)}%`}
+                >
+                  {displayName}
+                  <span className="confidence-badge">
+                    {(pc.confidence * 100).toFixed(0)}%
+                  </span>
                 </span>
-              </span>
-            ))}
+              );
+            })}
           </div>
         )}
 

@@ -21,14 +21,40 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
-// Get all posts
+// Get all posts (with AI summaries and hierarchical categories)
 app.get('/api/posts', async (req, res) => {
   try {
     const { page = 1, limit = 20, category, search, sortBy = 'created_at', sortOrder = 'desc' } = req.query;
 
     let query = supabase
-      .from('posts_with_categories')
-      .select('*', { count: 'exact' });
+      .from('posts')
+      .select(`
+        id,
+        reddit_id,
+        title,
+        content,
+        author,
+        score,
+        num_comments,
+        url,
+        permalink,
+        thumbnail,
+        link_flair_text,
+        ai_summary,
+        created_at,
+        post_categories (
+          confidence,
+          categories (
+            id,
+            name,
+            parent_id,
+            level,
+            categories!parent_id (
+              name
+            )
+          )
+        )
+      `, { count: 'exact' });
 
     if (category) {
       query = query.contains('category_names', [category]);
@@ -61,17 +87,33 @@ app.get('/api/posts', async (req, res) => {
   }
 });
 
-// Get all categories
+// Get all categories (hierarchical)
 app.get('/api/categories', async (req, res) => {
   try {
-    const { data, error } = await supabase
+    // Get all active categories
+    const { data: allCategories, error } = await supabase
       .from('categories')
-      .select('*')
+      .select('id, name, description, parent_id, level, sort_order, post_count')
       .eq('is_active', true)
-      .order('name');
+      .order('sort_order');
 
     if (error) throw error;
-    res.json({ data });
+
+    // Organize into hierarchy
+    const parents = allCategories.filter(c => c.level === 0);
+    const children = allCategories.filter(c => c.level === 1);
+
+    const hierarchical = parents.map(parent => ({
+      ...parent,
+      subcategories: children
+        .filter(child => child.parent_id === parent.id)
+        .sort((a, b) => a.sort_order - b.sort_order)
+    }));
+
+    res.json({
+      data: hierarchical,
+      flat: allCategories // Also return flat list for filtering
+    });
   } catch (error) {
     res.status(500).json({ error: { message: error.message } });
   }

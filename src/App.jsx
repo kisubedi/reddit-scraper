@@ -50,7 +50,7 @@ function PostsPage() {
   const loadCategories = async () => {
     try {
       const result = await getCategories(true);
-      setCategories(result.data || []);
+      setCategories(result.data || []); // Hierarchical structure with subcategories
     } catch (err) {
       console.error('Failed to load categories:', err);
     }

@@ -1,6 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const FilterPanel = ({ filters, onFilterChange, onSearch, categories }) => {
+  const [expandedCategories, setExpandedCategories] = useState({});
+
+  const toggleCategory = (parentId) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [parentId]: !prev[parentId]
+    }));
+  };
+
   return (
     <div className="filter-panel">
       <h2>Filters</h2>
@@ -17,19 +26,47 @@ const FilterPanel = ({ filters, onFilterChange, onSearch, categories }) => {
       </div>
 
       <div className="filter-group">
-        <label htmlFor="category">Category:</label>
-        <select
-          id="category"
-          value={filters.category}
-          onChange={(e) => onFilterChange('category', e.target.value)}
-        >
-          <option value="">All Categories</option>
-          {categories.map(category => (
-            <option key={category.id} value={category.name}>
-              {category.name} ({category.post_count || 0})
-            </option>
+        <label>Category:</label>
+        <div className="hierarchical-categories">
+          <div
+            className={`category-item ${filters.category === '' ? 'active' : ''}`}
+            onClick={() => onFilterChange('category', '')}
+          >
+            📋 All Categories
+          </div>
+
+          {categories.map(parent => (
+            <div key={parent.id} className="category-parent">
+              <div
+                className="category-parent-header"
+                onClick={() => toggleCategory(parent.id)}
+              >
+                <span className="expand-icon">
+                  {expandedCategories[parent.id] ? '▼' : '▶'}
+                </span>
+                <span className="category-name">{parent.name}</span>
+                <span className="category-count">
+                  ({(parent.subcategories || []).reduce((sum, sub) => sum + (sub.post_count || 0), 0)})
+                </span>
+              </div>
+
+              {expandedCategories[parent.id] && (
+                <div className="category-children">
+                  {(parent.subcategories || []).map(sub => (
+                    <div
+                      key={sub.id}
+                      className={`category-child ${filters.category === sub.name ? 'active' : ''}`}
+                      onClick={() => onFilterChange('category', sub.name)}
+                    >
+                      <span className="category-name">{sub.name}</span>
+                      <span className="category-count">({sub.post_count || 0})</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
-        </select>
+        </div>
       </div>
 
       <div className="filter-group">
