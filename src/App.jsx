@@ -1,9 +1,26 @@
 import { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import FilterPanel from './components/FilterPanel';
 import PostList from './components/PostList';
+import Analytics from './pages/Analytics';
 import { getPosts, getCategories } from './services/api';
 
-function App() {
+function Navigation() {
+  const location = useLocation();
+
+  return (
+    <nav className="main-nav">
+      <Link to="/" className={location.pathname === '/' ? 'active' : ''}>
+        📱 Posts
+      </Link>
+      <Link to="/analytics" className={location.pathname === '/analytics' ? 'active' : ''}>
+        📊 Analytics
+      </Link>
+    </nav>
+  );
+}
+
+function PostsPage() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -96,7 +113,7 @@ function App() {
   };
 
   return (
-    <div className="app">
+    <>
       <header className="app-header">
         <h1>📱 r/CopilotStudio Posts</h1>
         <p>Browse posts from the Copilot Studio subreddit with AI categorization</p>
@@ -127,7 +144,21 @@ function App() {
           />
         </main>
       </div>
-    </div>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <div className="app">
+        <Navigation />
+        <Routes>
+          <Route path="/" element={<PostsPage />} />
+          <Route path="/analytics" element={<Analytics />} />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
