@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { supabase } from '../src/config/database.js';
+import { classifyPost } from '../src/services/groq.service.js';
 
 dotenv.config();
 
@@ -30,8 +31,11 @@ const categoryKeywords = {
 };
 
 async function reclassify() {
+  const USE_AI = process.env.GROQ_API_KEY ? true : false;
+
   console.log('='.repeat(60));
   console.log('Reclassifying Posts with New Categories');
+  console.log(`Mode: ${USE_AI ? '🤖 AI (Groq)' : '🔤 Keywords'}`);
   console.log('='.repeat(60));
 
   try {
@@ -58,46 +62,79 @@ async function reclassify() {
     let skippedCount = 0;
 
     for (const post of posts) {
-      const text = `${post.title} ${post.content}`.toLowerCase();
-      const title = post.title.toLowerCase();
-      const assignments = [];
+      let assignments = [];
 
-      for (const category of categories) {
-        const keywords = categoryKeywords[category.name] || [];
+      // Try AI classification first
+      if (USE_AI) {
+        try {
+          const aiResults = await classifyPost(post.title, post.content || '');
 
-        // Skip General category in initial matching
-        if (category.name === 'General') continue;
-
-        let score = 0;
-
-        for (const keyword of keywords) {
-          if (title.includes(keyword.toLowerCase())) score += 3;
-          if (text.includes(keyword.toLowerCase())) score += 1;
-        }
-
-        if (score > 0) {
-          const confidence = Math.min(score / (keywords.length * 4) * 2.5, 0.98);
-          if (confidence >= 0.25) {
-            assignments.push({
-              post_id: post.id,
-              category_id: category.id,
-              category_name: category.name,
-              confidence
-            });
+          for (const result of aiResults) {
+            const category = categories.find(c => c.name === result.name);
+            if (category) {
+              assignments.push({
+                post_id: post.id,
+                category_id: category.id,
+                category_name: category.name,
+                confidence: result.confidence
+              });
+            }
           }
+
+          // Rate limit protection: 30 req/min = 2 sec between requests
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+        } catch (error) {
+          if (error.message === 'RATE_LIMIT') {
+            console.warn('\n⚠️  Rate limit hit, pausing for 60 seconds...');
+            await new Promise(resolve => setTimeout(resolve, 60000));
+          }
+          // Continue to next post on error
         }
       }
 
-      // If no categories matched, assign to General
-      if (assignments.length === 0) {
-        const generalCategory = categories.find(c => c.name === 'General');
-        if (generalCategory) {
-          assignments.push({
-            post_id: post.id,
-            category_id: generalCategory.id,
-            category_name: 'General',
-            confidence: 0.30
-          });
+      // Fallback to keyword matching if AI failed or disabled
+      if (!USE_AI || assignments.length === 0) {
+        const text = `${post.title} ${post.content}`.toLowerCase();
+        const title = post.title.toLowerCase();
+
+        for (const category of categories) {
+          const keywords = categoryKeywords[category.name] || [];
+
+          // Skip General category in initial matching
+          if (category.name === 'General') continue;
+
+          let score = 0;
+
+          for (const keyword of keywords) {
+            if (title.includes(keyword.toLowerCase())) score += 3;
+            if (text.includes(keyword.toLowerCase())) score += 1;
+          }
+
+          if (score > 0) {
+            const confidence = Math.min(score / (keywords.length * 4) * 2.5, 0.98);
+            if (confidence >= 0.25) {
+              assignments.push({
+                post_id: post.id,
+                category_id: category.id,
+                category_name: category.name,
+                confidence
+              });
+            }
+          }
+        }
+
+        // If no categories matched, assign to General
+        if (assignments.length === 0) {
+          const generalCategory = categories.find(c => c.name === 'General');
+          if (generalCategory) {
+            assignments.push({
+              post_id: post.id,
+              category_id: generalCategory.id,
+              category_name: 'General',
+              confidence: 0.30
+            });
+          }
         }
       }
 

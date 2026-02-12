@@ -1,12 +1,14 @@
 import dotenv from 'dotenv';
 import { supabase } from '../src/config/database.js';
 import fetch from 'node-fetch';
+import { classifyPost } from '../src/services/groq.service.js';
 
 dotenv.config();
 
 const SUBREDDIT = 'copilotstudio';
 const HOURS_AGO = 8760; // 365 days (1 year)
 const TARGET_POSTS = 500; // Target number of posts to fetch
+const USE_AI_CLASSIFICATION = process.env.GROQ_API_KEY ? true : false;
 
 // Keywords for categorization
 const categoryKeywords = {
@@ -147,44 +149,78 @@ async function scrape() {
         continue;
       }
 
-      // Categorize
-      const text = `${post.title} ${post.selftext}`.toLowerCase();
-      const assignments = [];
+      // Categorize using AI or keywords
+      let assignments = [];
 
-      for (const category of categories) {
-        const keywords = categoryKeywords[category.name] || [];
+      if (USE_AI_CLASSIFICATION) {
+        // AI Classification with Gemini
+        try {
+          const aiResults = await classifyPost(post.title, post.selftext || '');
 
-        // Skip General category in initial matching
-        if (category.name === 'General') continue;
-
-        let score = 0;
-
-        for (const keyword of keywords) {
-          if (post.title.toLowerCase().includes(keyword.toLowerCase())) score += 3;
-          if (text.includes(keyword.toLowerCase())) score += 1;
-        }
-
-        if (score > 0) {
-          const confidence = Math.min(score / (keywords.length * 4) * 2.5, 0.98);
-          if (confidence >= 0.25) {
-            assignments.push({
-              post_id: inserted.id,
-              category_id: category.id,
-              confidence
-            });
+          for (const result of aiResults) {
+            const category = categories.find(c => c.name === result.name);
+            if (category) {
+              assignments.push({
+                post_id: inserted.id,
+                category_id: category.id,
+                confidence: result.confidence
+              });
+            }
           }
+
+          console.log(`  🤖 AI: "${post.title.substring(0, 40)}..." → ${aiResults.map(r => r.name).join(', ')}`);
+
+          // Add delay to respect rate limits (30 req/min = 2 sec between requests)
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+        } catch (error) {
+          if (error.message === 'RATE_LIMIT') {
+            console.warn('⚠️  Rate limit hit, falling back to keywords for this post');
+          }
+          // Fall back to keyword matching on error
+          USE_AI_CLASSIFICATION = false; // Temporarily disable for this batch
         }
       }
 
-      // If no categories matched, assign to General
-      if (assignments.length === 0) {
-        const generalCategory = categories.find(c => c.name === 'General');
-        if (generalCategory) {
-          assignments.push({
-            post_id: inserted.id,
-            category_id: generalCategory.id,
-            confidence: 0.30
-          });
+      // Keyword Classification (fallback or if AI disabled)
+      if (!USE_AI_CLASSIFICATION || assignments.length === 0) {
+        const text = `${post.title} ${post.selftext}`.toLowerCase();
+
+        for (const category of categories) {
+          const keywords = categoryKeywords[category.name] || [];
+
+          // Skip General category in initial matching
+          if (category.name === 'General') continue;
+
+          let score = 0;
+
+          for (const keyword of keywords) {
+            if (post.title.toLowerCase().includes(keyword.toLowerCase())) score += 3;
+            if (text.includes(keyword.toLowerCase())) score += 1;
+          }
+
+          if (score > 0) {
+            const confidence = Math.min(score / (keywords.length * 4) * 2.5, 0.98);
+            if (confidence >= 0.25) {
+              assignments.push({
+                post_id: inserted.id,
+                category_id: category.id,
+                confidence
+              });
+            }
+          }
+        }
+
+        // If no categories matched, assign to General
+        if (assignments.length === 0) {
+          const generalCategory = categories.find(c => c.name === 'General');
+          if (generalCategory) {
+            assignments.push({
+              post_id: inserted.id,
+              category_id: generalCategory.id,
+              confidence: 0.30
+            });
+          }
         }
       }
 

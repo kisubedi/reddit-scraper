@@ -9,10 +9,13 @@
     "dev": "node src/index.js",
     "scrape": "node scripts/scraper.js",
     "reclassify": "node scripts/reclassify.js",
-    "update-categories": "node scripts/update-categories.js"
+    "update-categories": "node scripts/update-categories.js",
+    "test-gemini": "node scripts/test-gemini.js",
+    "test-groq": "node scripts/test-groq.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
+    "groq-sdk": "^0.7.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
