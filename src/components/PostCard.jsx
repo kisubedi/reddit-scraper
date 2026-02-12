@@ -61,12 +61,13 @@ const PostCard = ({ post }) => {
 
         {post_categories && post_categories.length > 0 && (
           <div className="post-categories">
+            <span className="categories-label">Categories:</span>
             {post_categories.map((pc, index) => {
               const category = pc.categories;
-              const parentName = category.categories?.[0]?.name || null;
+              const parentName = category?.parent_name;
               const displayName = parentName
                 ? `${parentName} › ${category.name}`
-                : category.name;
+                : category?.name || 'Unknown';
 
               return (
                 <span

@@ -48,10 +48,7 @@ app.get('/api/posts', async (req, res) => {
             id,
             name,
             parent_id,
-            level,
-            categories!parent_id (
-              name
-            )
+            level
           )
         )
       `, { count: 'exact' });
@@ -139,8 +136,39 @@ app.get('/api/posts', async (req, res) => {
 
     if (error) throw error;
 
+    // Fetch all parent categories to join manually
+    const { data: allCategories } = await supabase
+      .from('categories')
+      .select('id, name, parent_id');
+
+    const categoryMap = {};
+    allCategories?.forEach(cat => {
+      categoryMap[cat.id] = cat;
+    });
+
+    // Add parent category names to post_categories
+    const postsWithParents = data?.map(post => {
+      if (post.post_categories && post.post_categories.length > 0) {
+        post.post_categories = post.post_categories.map(pc => {
+          const category = pc.categories;
+          if (category && category.parent_id) {
+            const parent = categoryMap[category.parent_id];
+            return {
+              ...pc,
+              categories: {
+                ...category,
+                parent_name: parent?.name
+              }
+            };
+          }
+          return pc;
+        });
+      }
+      return post;
+    });
+
     res.json({
-      data,
+      data: postsWithParents,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -156,18 +184,37 @@ app.get('/api/posts', async (req, res) => {
 // Get all categories (hierarchical)
 app.get('/api/categories', async (req, res) => {
   try {
-    // Get all active categories with post counts
+    // Get all active categories
     const { data: allCategories, error } = await supabase
       .from('categories')
-      .select('id, name, description, parent_id, level, sort_order, post_count')
+      .select('id, name, description, parent_id, level, sort_order')
       .eq('is_active', true)
       .order('sort_order');
 
     if (error) throw error;
 
+    // Get actual post counts from post_categories table
+    const { data: postCounts, error: countError } = await supabase
+      .from('post_categories')
+      .select('category_id');
+
+    if (countError) throw countError;
+
+    // Count posts per category
+    const countMap = {};
+    postCounts.forEach(pc => {
+      countMap[pc.category_id] = (countMap[pc.category_id] || 0) + 1;
+    });
+
+    // Add counts to categories
+    const categoriesWithCounts = allCategories.map(cat => ({
+      ...cat,
+      post_count: countMap[cat.id] || 0
+    }));
+
     // Organize into hierarchy
-    const parents = allCategories.filter(c => c.level === 0);
-    const children = allCategories.filter(c => c.level === 1);
+    const parents = categoriesWithCounts.filter(c => c.level === 0);
+    const children = categoriesWithCounts.filter(c => c.level === 1);
 
     const hierarchical = parents.map(parent => {
       const subcats = children
@@ -186,7 +233,7 @@ app.get('/api/categories', async (req, res) => {
 
     res.json({
       data: hierarchical,
-      flat: allCategories // Also return flat list for filtering
+      flat: categoriesWithCounts // Also return flat list for filtering
     });
   } catch (error) {
     res.status(500).json({ error: { message: error.message } });
