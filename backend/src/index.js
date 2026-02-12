@@ -5,6 +5,7 @@ import { supabase, testConnection } from './config/database.js';
 
 dotenv.config();
 
+// Backend API v2 - Hierarchical categories with dynamic counts
 const app = express();
 const PORT = process.env.PORT || 3001;
 
