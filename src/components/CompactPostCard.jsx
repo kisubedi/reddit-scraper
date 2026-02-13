@@ -1,11 +1,13 @@
 import React from 'react';
 
 const CompactPostCard = ({ post }) => {
-  const { title, permalink, score, num_comments } = post;
+  const { ai_summary, title, permalink, score, num_comments } = post;
 
   return (
     <div className="compact-post-card">
-      <div className="compact-post-title">{title}</div>
+      <div className="compact-post-title">
+        {ai_summary || title || 'No summary available'}
+      </div>
       <div className="compact-post-meta">
         <a
           href={permalink}
