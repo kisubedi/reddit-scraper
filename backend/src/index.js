@@ -412,6 +412,68 @@ app.get('/api/admin/product-area-status', async (req, res) => {
   }
 });
 
+// Submit category request
+app.post('/api/category-requests', async (req, res) => {
+  try {
+    const { topic_name, description } = req.body;
+
+    // Validation
+    if (!topic_name || topic_name.trim().length === 0) {
+      return res.status(400).json({
+        error: { message: 'Topic name is required' }
+      });
+    }
+
+    if (topic_name.length > 100) {
+      return res.status(400).json({
+        error: { message: 'Topic name must be 100 characters or less' }
+      });
+    }
+
+    // Insert into database
+    const { data, error } = await supabase
+      .from('category_requests')
+      .insert({
+        topic_name: topic_name.trim(),
+        description: description?.trim() || null,
+        status: 'pending'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    console.log(`📝 New category request: "${topic_name}"`);
+
+    res.status(201).json({
+      message: 'Category request submitted successfully',
+      data
+    });
+  } catch (error) {
+    console.error('Failed to submit category request:', error);
+    res.status(500).json({ error: { message: error.message } });
+  }
+});
+
+// Get all category requests (admin)
+app.get('/api/category-requests', async (req, res) => {
+  try {
+    const { status = 'pending' } = req.query;
+
+    const { data, error } = await supabase
+      .from('category_requests')
+      .select('*')
+      .eq('status', status)
+      .order('submitted_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ data });
+  } catch (error) {
+    res.status(500).json({ error: { message: error.message } });
+  }
+});
+
 // Manual scraper trigger (for testing)
 app.post('/api/scraper/trigger', async (req, res) => {
   console.log('\n🔄 [MANUAL] Manual scrape triggered via API...');

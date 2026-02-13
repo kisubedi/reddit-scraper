@@ -52,3 +52,13 @@ export async function getProductAreaTrends() {
 export async function healthCheck() {
   return fetchAPI('/health');
 }
+
+export async function submitCategoryRequest(topicName, description) {
+  return fetchAPI('/category-requests', {
+    method: 'POST',
+    body: JSON.stringify({
+      topic_name: topicName,
+      description: description
+    })
+  });
+}

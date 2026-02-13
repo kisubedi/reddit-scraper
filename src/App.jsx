@@ -4,6 +4,7 @@ import CategorySection from './components/CategorySection';
 import ProductAreaSection from './components/ProductAreaSection';
 import CategoryFilterSidebar from './components/CategoryFilterSidebar';
 import DateFilter from './components/DateFilter';
+import SubmitCategoryModal from './components/SubmitCategoryModal';
 import Analytics from './pages/Analytics';
 import { getPosts } from './services/api';
 
@@ -29,6 +30,7 @@ function PostsPage() {
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedProductAreas, setSelectedProductAreas] = useState([]);
   const [datePeriod, setDatePeriod] = useState('all');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const INITIAL_SELECTION_LIMIT = 6;
 
@@ -214,16 +216,31 @@ function PostsPage() {
   return (
     <>
       <header className="app-header">
-        <h1>📱 r/CopilotStudio Posts</h1>
-        <p>Browse posts from the Copilot Studio subreddit organized by AI categories</p>
-        <div className="header-stats">
-          <span>{filteredPosts.length} posts</span>
-          <span>•</span>
-          <span>{sortedCategories.length} categories</span>
-          <span>•</span>
-          <span>{sortedProductAreas.length} product areas</span>
+        <div className="header-content">
+          <div className="header-text">
+            <h1>📱 r/CopilotStudio Posts</h1>
+            <p>Browse posts from the Copilot Studio subreddit organized by AI categories</p>
+            <div className="header-stats">
+              <span>{filteredPosts.length} posts</span>
+              <span>•</span>
+              <span>{sortedCategories.length} categories</span>
+              <span>•</span>
+              <span>{sortedProductAreas.length} product areas</span>
+            </div>
+          </div>
+          <button
+            className="submit-category-btn"
+            onClick={() => setIsModalOpen(true)}
+          >
+            ➕ Submit a Category
+          </button>
         </div>
       </header>
+
+      <SubmitCategoryModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
 
       <DateFilter
         selectedPeriod={datePeriod}
