@@ -278,9 +278,101 @@ app.get('/api/scraper/status', async (req, res) => {
     res.json({
       lastScraped: latestPost?.scraped_at || null,
       totalPosts: totalPosts || 0,
-      nextScheduled: '00:00 UTC daily',
+      nextScheduled: 'Every Sunday at 00:00 UTC',
       status: 'active'
     });
+  } catch (error) {
+    res.status(500).json({ error: { message: error.message } });
+  }
+});
+
+// Get category trends over time (weekly data)
+app.get('/api/analytics/trends', async (req, res) => {
+  try {
+    // Get all posts with their categories from the last year
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+    const { data: posts, error } = await supabase
+      .from('posts')
+      .select(`
+        id,
+        created_at,
+        post_categories (
+          category_id,
+          categories (
+            id,
+            name,
+            parent_id
+          )
+        )
+      `)
+      .gte('created_at', oneYearAgo.toISOString())
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    // Get all subcategories
+    const { data: categories } = await supabase
+      .from('categories')
+      .select('id, name, parent_id')
+      .eq('is_active', true)
+      .eq('level', 1); // Only subcategories
+
+    // Group posts by week
+    const weeklyData = {};
+
+    posts.forEach(post => {
+      const date = new Date(post.created_at);
+      // Get week start (Sunday)
+      const weekStart = new Date(date);
+      weekStart.setDate(date.getDate() - date.getDay());
+      weekStart.setHours(0, 0, 0, 0);
+      const weekKey = weekStart.toISOString().split('T')[0];
+
+      if (!weeklyData[weekKey]) {
+        weeklyData[weekKey] = {
+          total: 0,
+          categories: {}
+        };
+      }
+
+      weeklyData[weekKey].total++;
+
+      // Count categories for this post
+      if (post.post_categories && post.post_categories.length > 0) {
+        post.post_categories.forEach(pc => {
+          const catName = pc.categories?.name;
+          if (catName) {
+            weeklyData[weekKey].categories[catName] =
+              (weeklyData[weekKey].categories[catName] || 0) + 1;
+          }
+        });
+      }
+    });
+
+    // Convert to percentage format for charting
+    const weeks = Object.keys(weeklyData).sort();
+    const trendData = {
+      labels: weeks.map(w => {
+        const d = new Date(w);
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }),
+      datasets: categories.map(cat => {
+        const data = weeks.map(week => {
+          const count = weeklyData[week].categories[cat.name] || 0;
+          const total = weeklyData[week].total;
+          return total > 0 ? ((count / total) * 100).toFixed(1) : 0;
+        });
+
+        return {
+          label: cat.name,
+          data: data
+        };
+      })
+    };
+
+    res.json(trendData);
   } catch (error) {
     res.status(500).json({ error: { message: error.message } });
   }
@@ -329,10 +421,10 @@ app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
 
-// Schedule daily scraping at midnight UTC
+// Schedule weekly scraping every Sunday at midnight UTC
 // Cron format: minute hour day month weekday
-// '0 0 * * *' = Every day at 00:00 UTC
-cron.schedule('0 0 * * *', async () => {
+// '0 0 * * 0' = Every Sunday at 00:00 UTC
+cron.schedule('0 0 * * 0', async () => {
   console.log('\n🕐 [CRON] Starting scheduled Reddit scrape...');
   console.log(`⏰ [CRON] Time: ${new Date().toISOString()}`);
 
@@ -347,4 +439,4 @@ cron.schedule('0 0 * * *', async () => {
   timezone: "UTC"
 });
 
-console.log('⏰ Cron job scheduled: Daily scrape at 00:00 UTC');
+console.log('⏰ Cron job scheduled: Weekly scrape every Sunday at 00:00 UTC');

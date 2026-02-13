@@ -41,6 +41,10 @@ export async function getSummary() {
   return fetchAPI('/analytics/summary');
 }
 
+export async function getTrends() {
+  return fetchAPI('/analytics/trends');
+}
+
 export async function healthCheck() {
   return fetchAPI('/health');
 }

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { getCategories, getSummary } from '../services/api';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { getCategories, getSummary, getTrends } from '../services/api';
 
 const Analytics = () => {
   const [categories, setCategories] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -13,13 +15,15 @@ const Analytics = () => {
   const loadAnalytics = async () => {
     setLoading(true);
     try {
-      const [categoriesData, summaryData] = await Promise.all([
+      const [categoriesData, summaryData, trendsData] = await Promise.all([
         getCategories(true),
-        getSummary()
+        getSummary(),
+        getTrends()
       ]);
 
       setCategories(categoriesData.data || []);
       setSummary(summaryData);
+      setTrends(trendsData);
     } catch (error) {
       console.error('Failed to load analytics:', error);
     } finally {
@@ -74,6 +78,70 @@ const Analytics = () => {
             </div>
           </div>
         </div>
+
+        {/* Trending Chart */}
+        {trends && trends.datasets && trends.datasets.length > 0 && (
+          <div className="chart-section">
+            <h2>📈 Category Trends Over Time (% of Total Posts)</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+              Weekly breakdown showing each category as a percentage of total posts
+            </p>
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart
+                data={trends.labels.map((label, index) => {
+                  const point = { week: label };
+                  trends.datasets.forEach(dataset => {
+                    point[dataset.label] = parseFloat(dataset.data[index]);
+                  });
+                  return point;
+                })}
+                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="week"
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                  style={{ fontSize: '0.75rem' }}
+                />
+                <YAxis
+                  label={{ value: '% of Total Posts', angle: -90, position: 'insideLeft' }}
+                  style={{ fontSize: '0.85rem' }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '4px'
+                  }}
+                  formatter={(value) => `${value}%`}
+                />
+                <Legend
+                  wrapperStyle={{ fontSize: '0.85rem' }}
+                  iconType="line"
+                />
+                {trends.datasets.slice(0, 10).map((dataset, index) => {
+                  const colors = [
+                    '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899',
+                    '#14b8a6', '#f97316', '#6366f1', '#ef4444', '#22c55e'
+                  ];
+                  return (
+                    <Line
+                      key={dataset.label}
+                      type="monotone"
+                      dataKey={dataset.label}
+                      stroke={colors[index % colors.length]}
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  );
+                })}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         {/* Category Histogram */}
         <div className="chart-section">

@@ -6,8 +6,8 @@ import { classifyPost } from '../src/services/groq.service.js';
 dotenv.config();
 
 const SUBREDDIT = 'copilotstudio';
-const HOURS_AGO = 8760; // 365 days (1 year)
-const TARGET_POSTS = 500; // Target number of posts to fetch
+const HOURS_AGO = 168; // 7 days (1 week)
+const TARGET_POSTS = 100; // Target number of posts to fetch per week
 const USE_AI_CLASSIFICATION = process.env.GROQ_API_KEY ? true : false;
 
 // Keywords for categorization
