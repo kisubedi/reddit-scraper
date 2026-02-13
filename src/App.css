@@ -659,6 +659,56 @@ body {
   font-weight: 500;
 }
 
+/* Date Filter Bar */
+.date-filter-bar {
+  background: var(--bg-card);
+  padding: 1rem 2rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.date-filter-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.date-filter-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.date-filter-btn {
+  padding: 0.5rem 1.5rem;
+  border: 2px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.date-filter-btn:hover {
+  border-color: var(--reddit-orange);
+  background: rgba(255, 69, 0, 0.05);
+}
+
+.date-filter-btn.active {
+  background: var(--reddit-orange);
+  color: white;
+  border-color: var(--reddit-orange);
+}
+
+.date-filter-btn.active:hover {
+  background: #ff5722;
+  border-color: #ff5722;
+}
+
 .section-title {
   font-size: 1.75rem;
   margin-bottom: 1.5rem;
@@ -842,6 +892,22 @@ body {
 
   .section-title {
     font-size: 1.5rem;
+  }
+
+  .date-filter-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .date-filter-buttons {
+    width: 100%;
+  }
+
+  .date-filter-btn {
+    flex: 1;
+    padding: 0.75rem 1rem;
   }
 }
 

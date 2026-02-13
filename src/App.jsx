@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react
 import CategorySection from './components/CategorySection';
 import ProductAreaSection from './components/ProductAreaSection';
 import CategoryFilterSidebar from './components/CategoryFilterSidebar';
+import DateFilter from './components/DateFilter';
 import Analytics from './pages/Analytics';
 import { getPosts } from './services/api';
 
@@ -27,6 +28,7 @@ function PostsPage() {
   const [error, setError] = useState(null);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedProductAreas, setSelectedProductAreas] = useState([]);
+  const [datePeriod, setDatePeriod] = useState('all');
 
   const INITIAL_SELECTION_LIMIT = 6;
 
@@ -56,11 +58,31 @@ function PostsPage() {
     }
   };
 
+  // Filter posts by date period
+  const getDateThreshold = () => {
+    const now = new Date();
+    if (datePeriod === 'week') {
+      const weekAgo = new Date(now);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      return weekAgo;
+    } else if (datePeriod === 'month') {
+      const monthAgo = new Date(now);
+      monthAgo.setMonth(monthAgo.getMonth() - 1);
+      return monthAgo;
+    }
+    return null; // all time
+  };
+
+  const dateThreshold = getDateThreshold();
+  const filteredPosts = dateThreshold
+    ? posts.filter(post => new Date(post.created_at) >= dateThreshold)
+    : posts;
+
   // Group posts by category
   const postsByCategory = {};
   const categoryInfo = {};
 
-  posts.forEach(post => {
+  filteredPosts.forEach(post => {
     if (post.post_categories && post.post_categories.length > 0) {
       post.post_categories.forEach(pc => {
         const category = pc.categories;
@@ -85,7 +107,7 @@ function PostsPage() {
   const postsByProductArea = {};
   const productAreaInfo = {};
 
-  posts.forEach(post => {
+  filteredPosts.forEach(post => {
     if (post.post_product_areas && post.post_product_areas.length > 0) {
       post.post_product_areas.forEach(ppa => {
         const productArea = ppa.product_areas;
@@ -121,7 +143,7 @@ function PostsPage() {
         .map(c => c.id);
       setSelectedCategories(topCategoryIds);
     }
-  }, [sortedCategories.length]);
+  }, [sortedCategories.length, datePeriod]);
 
   useEffect(() => {
     if (sortedProductAreas.length > 0 && selectedProductAreas.length === 0) {
@@ -130,7 +152,7 @@ function PostsPage() {
         .map(pa => pa.id);
       setSelectedProductAreas(topProductAreaIds);
     }
-  }, [sortedProductAreas.length]);
+  }, [sortedProductAreas.length, datePeriod]);
 
   const handleCategoryToggle = (categoryId) => {
     setSelectedCategories(prev =>
@@ -146,6 +168,13 @@ function PostsPage() {
         ? prev.filter(id => id !== productAreaId)
         : [...prev, productAreaId]
     );
+  };
+
+  const handleDatePeriodChange = (period) => {
+    setDatePeriod(period);
+    // Reset selections when date changes
+    setSelectedCategories([]);
+    setSelectedProductAreas([]);
   };
 
   // Filter displayed categories based on selection
@@ -188,13 +217,18 @@ function PostsPage() {
         <h1>📱 r/CopilotStudio Posts</h1>
         <p>Browse posts from the Copilot Studio subreddit organized by AI categories</p>
         <div className="header-stats">
-          <span>{posts.length} posts</span>
+          <span>{filteredPosts.length} posts</span>
           <span>•</span>
           <span>{sortedCategories.length} categories</span>
           <span>•</span>
           <span>{sortedProductAreas.length} product areas</span>
         </div>
       </header>
+
+      <DateFilter
+        selectedPeriod={datePeriod}
+        onPeriodChange={handleDatePeriodChange}
+      />
 
       <div className="app-container-with-sidebar">
         <CategoryFilterSidebar
