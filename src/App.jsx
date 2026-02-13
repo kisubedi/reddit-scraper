@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import FilterPanel from './components/FilterPanel';
-import PostList from './components/PostList';
+import CategorySection from './components/CategorySection';
+import ProductAreaSection from './components/ProductAreaSection';
 import Analytics from './pages/Analytics';
-import { getPosts, getCategories } from './services/api';
+import { getPosts } from './services/api';
 
 function Navigation() {
   const location = useLocation();
@@ -24,59 +24,30 @@ function PostsPage() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [categories, setCategories] = useState([]);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 20,
-    total: 0,
-    totalPages: 0
-  });
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  const [showAllProductAreas, setShowAllProductAreas] = useState(false);
 
-  const [filters, setFilters] = useState({
-    category: '',
-    search: '',
-    sortBy: 'created_at',
-    sortOrder: 'desc'
-  });
+  const INITIAL_CATEGORY_LIMIT = 6;
+  const INITIAL_PRODUCT_AREA_LIMIT = 6;
 
   useEffect(() => {
-    loadCategories();
+    loadPosts();
   }, []);
 
-  useEffect(() => {
-    loadPosts(1);
-  }, [filters.category, filters.search, filters.sortBy, filters.sortOrder]);
-
-  const loadCategories = async () => {
-    try {
-      const result = await getCategories(true);
-      setCategories(result.data || []); // Hierarchical structure with subcategories
-    } catch (err) {
-      console.error('Failed to load categories:', err);
-    }
-  };
-
-  const loadPosts = async (page = 1) => {
+  const loadPosts = async () => {
     setLoading(true);
     setError(null);
 
     try {
+      // Load all posts (or a large batch) sorted by most recent
       const result = await getPosts({
-        page,
-        limit: pagination.limit,
-        category: filters.category || undefined,
-        search: filters.search || undefined,
-        sortBy: filters.sortBy,
-        sortOrder: filters.sortOrder
+        page: 1,
+        limit: 500,
+        sortBy: 'created_at',
+        sortOrder: 'desc'
       });
 
-      if (page === 1) {
-        setPosts(result.data || []);
-      } else {
-        setPosts(prev => [...prev, ...(result.data || [])]);
-      }
-
-      setPagination(result.pagination || {});
+      setPosts(result.data || []);
     } catch (err) {
       setError(err.message || 'Failed to load posts');
       console.error('Failed to load posts:', err);
@@ -85,64 +56,160 @@ function PostsPage() {
     }
   };
 
-  const handleFilterChange = (filterName, value) => {
-    if (filterName === 'reset') {
-      setFilters({
-        category: '',
-        search: '',
-        sortBy: 'created_at',
-        sortOrder: 'desc'
+  // Group posts by category
+  const postsByCategory = {};
+  const categoryInfo = {};
+
+  posts.forEach(post => {
+    if (post.post_categories && post.post_categories.length > 0) {
+      post.post_categories.forEach(pc => {
+        const category = pc.categories;
+        if (category) {
+          const catId = category.id;
+          if (!postsByCategory[catId]) {
+            postsByCategory[catId] = [];
+            categoryInfo[catId] = {
+              id: catId,
+              name: category.name,
+              description: category.description,
+              parent_name: category.parent_name
+            };
+          }
+          postsByCategory[catId].push(post);
+        }
       });
-      return;
     }
+  });
 
-    setFilters(prev => ({
-      ...prev,
-      [filterName]: value
-    }));
-  };
+  // Group posts by product area
+  const postsByProductArea = {};
+  const productAreaInfo = {};
 
-  const handleLoadMore = () => {
-    if (!loading && pagination.page < pagination.totalPages) {
-      loadPosts(pagination.page + 1);
+  posts.forEach(post => {
+    if (post.post_product_areas && post.post_product_areas.length > 0) {
+      post.post_product_areas.forEach(ppa => {
+        const productArea = ppa.product_areas;
+        if (productArea) {
+          const paId = productArea.id;
+          if (!postsByProductArea[paId]) {
+            postsByProductArea[paId] = [];
+            productAreaInfo[paId] = {
+              id: paId,
+              name: productArea.name
+            };
+          }
+          postsByProductArea[paId].push(post);
+        }
+      });
     }
-  };
+  });
 
-  const handleSearch = (query) => {
-    handleFilterChange('search', query);
-  };
+  // Sort by post count
+  const sortedCategories = Object.entries(postsByCategory)
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([id, posts]) => ({ ...categoryInfo[id], posts }));
+
+  const sortedProductAreas = Object.entries(postsByProductArea)
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([id, posts]) => ({ ...productAreaInfo[id], posts }));
+
+  const displayedCategories = showAllCategories
+    ? sortedCategories
+    : sortedCategories.slice(0, INITIAL_CATEGORY_LIMIT);
+
+  const displayedProductAreas = showAllProductAreas
+    ? sortedProductAreas
+    : sortedProductAreas.slice(0, INITIAL_PRODUCT_AREA_LIMIT);
+
+  if (loading) {
+    return (
+      <>
+        <header className="app-header">
+          <h1>📱 r/CopilotStudio Posts</h1>
+        </header>
+        <div className="loading-message">Loading posts...</div>
+      </>
+    );
+  }
+
+  if (error) {
+    return (
+      <>
+        <header className="app-header">
+          <h1>📱 r/CopilotStudio Posts</h1>
+        </header>
+        <div className="error-message">
+          <h3>Error loading posts</h3>
+          <p>{error}</p>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       <header className="app-header">
         <h1>📱 r/CopilotStudio Posts</h1>
-        <p>Browse posts from the Copilot Studio subreddit with AI categorization</p>
+        <p>Browse posts from the Copilot Studio subreddit organized by AI categories</p>
         <div className="header-stats">
-          <span>{pagination.total || 0} posts</span>
+          <span>{posts.length} posts</span>
           <span>•</span>
-          <span>{categories.length} categories</span>
+          <span>{sortedCategories.length} categories</span>
+          <span>•</span>
+          <span>{sortedProductAreas.length} product areas</span>
         </div>
       </header>
 
-      <div className="app-container">
-        <aside className="sidebar">
-          <FilterPanel
-            filters={filters}
-            onFilterChange={handleFilterChange}
-            onSearch={handleSearch}
-            categories={categories}
-          />
-        </aside>
+      <div className="app-container-new">
+        {/* Categories Section */}
+        <section className="categories-view">
+          <h2 className="section-title">📑 By Category</h2>
+          <div className="sections-grid">
+            {displayedCategories.map(category => (
+              <CategorySection
+                key={category.id}
+                category={category}
+                posts={category.posts}
+              />
+            ))}
+          </div>
+          {sortedCategories.length > INITIAL_CATEGORY_LIMIT && (
+            <button
+              className="see-more-section-btn"
+              onClick={() => setShowAllCategories(!showAllCategories)}
+            >
+              {showAllCategories
+                ? 'Show less categories'
+                : `See ${sortedCategories.length - INITIAL_CATEGORY_LIMIT} more categories`}
+            </button>
+          )}
+        </section>
 
-        <main className="main-content">
-          <PostList
-            posts={posts}
-            loading={loading}
-            error={error}
-            onLoadMore={handleLoadMore}
-            hasMore={pagination.page < pagination.totalPages}
-          />
-        </main>
+        {/* Product Areas Section */}
+        {sortedProductAreas.length > 0 && (
+          <section className="product-areas-view">
+            <h2 className="section-title">🏢 By Product Area</h2>
+            <div className="sections-grid">
+              {displayedProductAreas.map(productArea => (
+                <ProductAreaSection
+                  key={productArea.id}
+                  productArea={productArea}
+                  posts={productArea.posts}
+                />
+              ))}
+            </div>
+            {sortedProductAreas.length > INITIAL_PRODUCT_AREA_LIMIT && (
+              <button
+                className="see-more-section-btn"
+                onClick={() => setShowAllProductAreas(!showAllProductAreas)}
+              >
+                {showAllProductAreas
+                  ? 'Show less product areas'
+                  : `See ${sortedProductAreas.length - INITIAL_PRODUCT_AREA_LIMIT} more product areas`}
+              </button>
+            )}
+          </section>
+        )}
       </div>
     </>
   );

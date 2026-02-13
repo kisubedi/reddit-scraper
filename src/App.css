@@ -563,3 +563,192 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* New Compact Layout Styles */
+.app-container-new {
+  max-width: 1400px;
+  margin: 2rem auto;
+  padding: 0 2rem;
+}
+
+.section-title {
+  font-size: 1.75rem;
+  margin-bottom: 1.5rem;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.categories-view,
+.product-areas-view {
+  margin-bottom: 3rem;
+}
+
+.sections-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.category-section,
+.product-area-section {
+  background: var(--bg-card);
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.category-section:hover,
+.product-area-section:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.category-header,
+.product-area-header {
+  margin-bottom: 1rem;
+  border-bottom: 2px solid var(--bg-secondary);
+  padding-bottom: 0.75rem;
+}
+
+.category-name,
+.product-area-name {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.category-count,
+.product-area-count {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.category-description {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
+  line-height: 1.4;
+}
+
+.category-posts,
+.product-area-posts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+/* Compact Post Card */
+.compact-post-card {
+  padding: 0.75rem;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  transition: background-color 0.2s;
+}
+
+.compact-post-card:hover {
+  background: #e8e9ea;
+}
+
+.compact-post-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.compact-post-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.reddit-link {
+  color: var(--reddit-orange);
+  text-decoration: none;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: color 0.2s;
+}
+
+.reddit-link:hover {
+  color: #ff5722;
+  text-decoration: underline;
+}
+
+.compact-stats {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+/* See More Buttons */
+.see-more-btn {
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.see-more-btn:hover {
+  background: var(--border-color);
+  border-color: var(--text-secondary);
+}
+
+.see-more-section-btn {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+  display: block;
+  padding: 1rem;
+  background: var(--reddit-orange);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.see-more-section-btn:hover {
+  background: #ff5722;
+}
+
+@media (max-width: 968px) {
+  .app-container-new {
+    padding: 0 1rem;
+  }
+
+  .sections-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .compact-post-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}

@@ -53,6 +53,13 @@ app.get('/api/posts', async (req, res) => {
             parent_id,
             level
           )
+        ),
+        post_product_areas (
+          confidence,
+          product_areas (
+            id,
+            name
+          )
         )
       `, { count: 'exact' });
 
