@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import { supabase } from '../src/config/database.js';
 import fetch from 'node-fetch';
-import { classifyPost } from '../src/services/groq.service.js';
+import { classifyPost, classifyProductArea } from '../src/services/groq.service.js';
 
 dotenv.config();
 
@@ -229,6 +229,49 @@ async function scrape() {
         await supabase
           .from('post_categories')
           .insert(assignments);
+      }
+
+      // Classify into Product Areas (1-2 max)
+      if (USE_AI_CLASSIFICATION) {
+        try {
+          const productAreas = await classifyProductArea(post.title, post.selftext || '');
+
+          if (productAreas && productAreas.length > 0) {
+            // Get product area IDs
+            const { data: allProductAreas } = await supabase
+              .from('product_areas')
+              .select('id, name')
+              .eq('is_active', true);
+
+            const productAreaAssignments = [];
+            for (const area of productAreas) {
+              const productArea = allProductAreas.find(pa => pa.name === area.name);
+              if (productArea) {
+                productAreaAssignments.push({
+                  post_id: inserted.id,
+                  product_area_id: productArea.id,
+                  confidence: area.confidence
+                });
+              }
+            }
+
+            if (productAreaAssignments.length > 0) {
+              await supabase
+                .from('post_product_areas')
+                .insert(productAreaAssignments);
+
+              console.log(`  🏢 Product Areas: ${productAreas.map(a => a.name).join(', ')}`);
+            }
+          }
+
+          // Add delay for rate limiting
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+        } catch (error) {
+          if (error.message === 'RATE_LIMIT') {
+            console.warn('⚠️  Rate limit hit on product area classification');
+          }
+        }
       }
 
       newCount++;

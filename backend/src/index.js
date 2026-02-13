@@ -378,6 +378,97 @@ app.get('/api/analytics/trends', async (req, res) => {
   }
 });
 
+// Get product area trends over time (weekly data)
+app.get('/api/analytics/product-area-trends', async (req, res) => {
+  try {
+    // Get all posts with their product areas from the last year
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+    const { data: posts, error } = await supabase
+      .from('posts')
+      .select(`
+        id,
+        created_at,
+        post_product_areas (
+          product_area_id,
+          product_areas (
+            id,
+            name
+          )
+        )
+      `)
+      .gte('created_at', oneYearAgo.toISOString())
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    // Get all product areas
+    const { data: productAreas } = await supabase
+      .from('product_areas')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('sort_order');
+
+    // Group posts by week
+    const weeklyData = {};
+
+    posts.forEach(post => {
+      const date = new Date(post.created_at);
+      // Get week start (Sunday)
+      const weekStart = new Date(date);
+      weekStart.setDate(date.getDate() - date.getDay());
+      weekStart.setHours(0, 0, 0, 0);
+      const weekKey = weekStart.toISOString().split('T')[0];
+
+      if (!weeklyData[weekKey]) {
+        weeklyData[weekKey] = {
+          total: 0,
+          productAreas: {}
+        };
+      }
+
+      weeklyData[weekKey].total++;
+
+      // Count product areas for this post
+      if (post.post_product_areas && post.post_product_areas.length > 0) {
+        post.post_product_areas.forEach(ppa => {
+          const areaName = ppa.product_areas?.name;
+          if (areaName) {
+            weeklyData[weekKey].productAreas[areaName] =
+              (weeklyData[weekKey].productAreas[areaName] || 0) + 1;
+          }
+        });
+      }
+    });
+
+    // Convert to percentage format for charting
+    const weeks = Object.keys(weeklyData).sort();
+    const trendData = {
+      labels: weeks.map(w => {
+        const d = new Date(w);
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }),
+      datasets: productAreas.map(area => {
+        const data = weeks.map(week => {
+          const count = weeklyData[week].productAreas[area.name] || 0;
+          const total = weeklyData[week].total;
+          return total > 0 ? ((count / total) * 100).toFixed(1) : 0;
+        });
+
+        return {
+          label: area.name,
+          data: data
+        };
+      })
+    };
+
+    res.json(trendData);
+  } catch (error) {
+    res.status(500).json({ error: { message: error.message } });
+  }
+});
+
 // Get analytics summary
 app.get('/api/analytics/summary', async (req, res) => {
   try {

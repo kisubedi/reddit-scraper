@@ -14,7 +14,8 @@
     "test-groq": "node scripts/test-groq.js",
     "analyze-categories": "node scripts/analyze-categories.js",
     "generate-summaries": "node scripts/generate-summaries.js",
-    "implement-hierarchy": "node scripts/implement-hierarchy.js"
+    "implement-hierarchy": "node scripts/implement-hierarchy.js",
+    "setup-product-areas": "node scripts/setup-product-areas.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

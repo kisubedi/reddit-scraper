@@ -45,6 +45,10 @@ export async function getTrends() {
   return fetchAPI('/analytics/trends');
 }
 
+export async function getProductAreaTrends() {
+  return fetchAPI('/analytics/product-area-trends');
+}
+
 export async function healthCheck() {
   return fetchAPI('/health');
 }
