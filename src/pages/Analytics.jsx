@@ -7,6 +7,7 @@ const Analytics = () => {
   const [summary, setSummary] = useState(null);
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState(null);
 
   useEffect(() => {
     loadAnalytics();
@@ -84,62 +85,90 @@ const Analytics = () => {
           <div className="chart-section">
             <h2>📈 Category Trends Over Time (% of Total Posts)</h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-              Weekly breakdown showing each category as a percentage of total posts
+              Weekly breakdown showing each category as a percentage of total posts.
+              <strong> Click a line to highlight it.</strong>
             </p>
-            <ResponsiveContainer width="100%" height={400}>
-              <LineChart
-                data={trends.labels.map((label, index) => {
-                  const point = { week: label };
-                  trends.datasets.forEach(dataset => {
-                    point[dataset.label] = parseFloat(dataset.data[index]);
-                  });
-                  return point;
-                })}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="week"
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                  style={{ fontSize: '0.75rem' }}
-                />
-                <YAxis
-                  label={{ value: '% of Total Posts', angle: -90, position: 'insideLeft' }}
-                  style={{ fontSize: '0.85rem' }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'var(--bg-card)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '4px'
-                  }}
-                  formatter={(value) => `${value}%`}
-                />
-                <Legend
-                  wrapperStyle={{ fontSize: '0.85rem' }}
-                  iconType="line"
-                />
-                {trends.datasets.slice(0, 10).map((dataset, index) => {
-                  const colors = [
-                    '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899',
-                    '#14b8a6', '#f97316', '#6366f1', '#ef4444', '#22c55e'
-                  ];
-                  return (
-                    <Line
-                      key={dataset.label}
-                      type="monotone"
-                      dataKey={dataset.label}
-                      stroke={colors[index % colors.length]}
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                      activeDot={{ r: 5 }}
-                    />
-                  );
-                })}
-              </LineChart>
-            </ResponsiveContainer>
+            <div onClick={() => setSelectedCategory(null)} style={{ cursor: 'pointer' }}>
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart
+                  data={trends.labels.map((label, index) => {
+                    const point = { week: label };
+                    trends.datasets.forEach(dataset => {
+                      point[dataset.label] = parseFloat(dataset.data[index]);
+                    });
+                    return point;
+                  })}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="week"
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    style={{ fontSize: '0.75rem' }}
+                  />
+                  <YAxis
+                    label={{ value: '% of Total Posts', angle: -90, position: 'insideLeft' }}
+                    style={{ fontSize: '0.85rem' }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '4px'
+                    }}
+                    formatter={(value) => `${value}%`}
+                  />
+                  <Legend
+                    wrapperStyle={{ fontSize: '0.85rem', cursor: 'pointer' }}
+                    iconType="line"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const clickedCategory = e.value;
+                      setSelectedCategory(selectedCategory === clickedCategory ? null : clickedCategory);
+                    }}
+                  />
+                  {trends.datasets.slice(0, 15).map((dataset, index) => {
+                    const colors = [
+                      '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899',
+                      '#14b8a6', '#f97316', '#6366f1', '#ef4444', '#22c55e',
+                      '#a855f7', '#06b6d4', '#f43f5e', '#84cc16', '#0ea5e9'
+                    ];
+                    const isSelected = selectedCategory === dataset.label;
+                    const isOtherSelected = selectedCategory && !isSelected;
+
+                    return (
+                      <Line
+                        key={dataset.label}
+                        type="monotone"
+                        dataKey={dataset.label}
+                        stroke={colors[index % colors.length]}
+                        strokeWidth={isSelected ? 4 : 2}
+                        strokeOpacity={isOtherSelected ? 0.15 : 1}
+                        dot={{ r: isSelected ? 4 : 3, strokeOpacity: isOtherSelected ? 0.15 : 1, fillOpacity: isOtherSelected ? 0.15 : 1 }}
+                        activeDot={{ r: 6 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCategory(selectedCategory === dataset.label ? null : dataset.label);
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    );
+                  })}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            {selectedCategory && (
+              <p style={{
+                textAlign: 'center',
+                color: 'var(--reddit-orange)',
+                fontWeight: 'bold',
+                marginTop: '0.5rem'
+              }}>
+                Showing: {selectedCategory} (click anywhere to reset)
+              </p>
+            )}
           </div>
         )}
 
