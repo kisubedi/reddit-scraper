@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import CategorySection from './components/CategorySection';
 import ProductAreaSection from './components/ProductAreaSection';
+import CategoryFilterSidebar from './components/CategoryFilterSidebar';
 import Analytics from './pages/Analytics';
 import { getPosts } from './services/api';
 
@@ -24,11 +25,10 @@ function PostsPage() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showAllCategories, setShowAllCategories] = useState(false);
-  const [showAllProductAreas, setShowAllProductAreas] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [selectedProductAreas, setSelectedProductAreas] = useState([]);
 
-  const INITIAL_CATEGORY_LIMIT = 6;
-  const INITIAL_PRODUCT_AREA_LIMIT = 6;
+  const INITIAL_SELECTION_LIMIT = 6;
 
   useEffect(() => {
     loadPosts();
@@ -113,13 +113,49 @@ function PostsPage() {
     .sort((a, b) => b[1].length - a[1].length)
     .map(([id, posts]) => ({ ...productAreaInfo[id], posts }));
 
-  const displayedCategories = showAllCategories
-    ? sortedCategories
-    : sortedCategories.slice(0, INITIAL_CATEGORY_LIMIT);
+  // Initialize selected categories/product areas with top 6
+  useEffect(() => {
+    if (sortedCategories.length > 0 && selectedCategories.length === 0) {
+      const topCategoryIds = sortedCategories
+        .slice(0, INITIAL_SELECTION_LIMIT)
+        .map(c => c.id);
+      setSelectedCategories(topCategoryIds);
+    }
+  }, [sortedCategories.length]);
 
-  const displayedProductAreas = showAllProductAreas
-    ? sortedProductAreas
-    : sortedProductAreas.slice(0, INITIAL_PRODUCT_AREA_LIMIT);
+  useEffect(() => {
+    if (sortedProductAreas.length > 0 && selectedProductAreas.length === 0) {
+      const topProductAreaIds = sortedProductAreas
+        .slice(0, INITIAL_SELECTION_LIMIT)
+        .map(pa => pa.id);
+      setSelectedProductAreas(topProductAreaIds);
+    }
+  }, [sortedProductAreas.length]);
+
+  const handleCategoryToggle = (categoryId) => {
+    setSelectedCategories(prev =>
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
+
+  const handleProductAreaToggle = (productAreaId) => {
+    setSelectedProductAreas(prev =>
+      prev.includes(productAreaId)
+        ? prev.filter(id => id !== productAreaId)
+        : [...prev, productAreaId]
+    );
+  };
+
+  // Filter displayed categories based on selection
+  const displayedCategories = sortedCategories.filter(cat =>
+    selectedCategories.includes(cat.id)
+  );
+
+  const displayedProductAreas = sortedProductAreas.filter(pa =>
+    selectedProductAreas.includes(pa.id)
+  );
 
   if (loading) {
     return (
@@ -160,56 +196,56 @@ function PostsPage() {
         </div>
       </header>
 
-      <div className="app-container-new">
-        {/* Categories Section */}
-        <section className="categories-view">
-          <h2 className="section-title">📑 By Category</h2>
-          <div className="sections-grid">
-            {displayedCategories.map(category => (
-              <CategorySection
-                key={category.id}
-                category={category}
-                posts={category.posts}
-              />
-            ))}
-          </div>
-          {sortedCategories.length > INITIAL_CATEGORY_LIMIT && (
-            <button
-              className="see-more-section-btn"
-              onClick={() => setShowAllCategories(!showAllCategories)}
-            >
-              {showAllCategories
-                ? 'Show less categories'
-                : `See ${sortedCategories.length - INITIAL_CATEGORY_LIMIT} more categories`}
-            </button>
-          )}
-        </section>
+      <div className="app-container-with-sidebar">
+        <CategoryFilterSidebar
+          categories={sortedCategories}
+          productAreas={sortedProductAreas}
+          selectedCategories={selectedCategories}
+          selectedProductAreas={selectedProductAreas}
+          onCategoryToggle={handleCategoryToggle}
+          onProductAreaToggle={handleProductAreaToggle}
+        />
 
-        {/* Product Areas Section */}
-        {sortedProductAreas.length > 0 && (
-          <section className="product-areas-view">
-            <h2 className="section-title">🏢 By Product Area</h2>
-            <div className="sections-grid">
-              {displayedProductAreas.map(productArea => (
-                <ProductAreaSection
-                  key={productArea.id}
-                  productArea={productArea}
-                  posts={productArea.posts}
-                />
-              ))}
+        <div className="main-content-area">
+          {/* Categories Section */}
+          {displayedCategories.length > 0 && (
+            <section className="categories-view">
+              <h2 className="section-title">📑 By Category ({displayedCategories.length})</h2>
+              <div className="sections-grid">
+                {displayedCategories.map(category => (
+                  <CategorySection
+                    key={category.id}
+                    category={category}
+                    posts={category.posts}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Product Areas Section */}
+          {displayedProductAreas.length > 0 && (
+            <section className="product-areas-view">
+              <h2 className="section-title">🏢 By Product Area ({displayedProductAreas.length})</h2>
+              <div className="sections-grid">
+                {displayedProductAreas.map(productArea => (
+                  <ProductAreaSection
+                    key={productArea.id}
+                    productArea={productArea}
+                    posts={productArea.posts}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {displayedCategories.length === 0 && displayedProductAreas.length === 0 && (
+            <div className="empty-message">
+              <h3>No categories selected</h3>
+              <p>Select categories from the sidebar to view posts</p>
             </div>
-            {sortedProductAreas.length > INITIAL_PRODUCT_AREA_LIMIT && (
-              <button
-                className="see-more-section-btn"
-                onClick={() => setShowAllProductAreas(!showAllProductAreas)}
-              >
-                {showAllProductAreas
-                  ? 'Show less product areas'
-                  : `See ${sortedProductAreas.length - INITIAL_PRODUCT_AREA_LIMIT} more product areas`}
-              </button>
-            )}
-          </section>
-        )}
+          )}
+        </div>
       </div>
     </>
   );
