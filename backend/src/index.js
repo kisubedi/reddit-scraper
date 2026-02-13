@@ -245,35 +245,57 @@ app.get('/api/categories', async (req, res) => {
 
 // Classify existing posts into product areas (one-time operation)
 app.post('/api/admin/classify-product-areas', async (req, res) => {
-  console.log('\n🏢 [ADMIN] Starting product area classification...');
+  const batchSize = req.body.batch_size || 50;
+  console.log(`\n🏢 [ADMIN] Starting product area classification (batch size: ${batchSize})...`);
 
   // Start classification in background
   (async () => {
+    let totalClassified = 0;
+    let totalSkipped = 0;
+    let totalErrors = 0;
+
     try {
+      // Get unclassified posts
+      const { data: allPosts } = await supabase
+        .from('posts')
+        .select('id')
+        .order('created_at', { ascending: false });
+
+      const { data: classifiedPostIds } = await supabase
+        .from('post_product_areas')
+        .select('post_id');
+
+      const classifiedSet = new Set(classifiedPostIds.map(p => p.post_id));
+      const unclassifiedPostIds = allPosts
+        .filter(p => !classifiedSet.has(p.id))
+        .slice(0, batchSize)
+        .map(p => p.id);
+
+      console.log(`  📊 Found ${unclassifiedPostIds.length} unclassified posts`);
+
+      if (unclassifiedPostIds.length === 0) {
+        console.log('  ✅ All posts already classified!');
+        return;
+      }
+
+      // Get post details
       const { data: posts } = await supabase
         .from('posts')
         .select('id, title, content')
-        .order('created_at', { ascending: false })
-        .limit(100);
+        .in('id', unclassifiedPostIds);
 
       const { data: productAreas } = await supabase
         .from('product_areas')
         .select('id, name')
         .eq('is_active', true);
 
+      console.log(`  🏷️  ${productAreas.length} product areas available`);
+
       const { classifyProductArea } = await import('./services/groq.service.js');
 
-      let count = 0;
       for (const post of posts) {
-        const { data: existing } = await supabase
-          .from('post_product_areas')
-          .select('id')
-          .eq('post_id', post.id)
-          .limit(1);
-
-        if (existing && existing.length > 0) continue;
-
         try {
+          console.log(`  🔄 Classifying: ${post.title.substring(0, 50)}...`);
           const areas = await classifyProductArea(post.title, post.content || '');
 
           if (areas && areas.length > 0) {
@@ -290,31 +312,53 @@ app.post('/api/admin/classify-product-areas', async (req, res) => {
             }
 
             if (assignments.length > 0) {
-              await supabase.from('post_product_areas').insert(assignments);
-              count++;
-              console.log(`  ✅ Classified post ${count}: ${post.title.substring(0, 40)}...`);
+              const { error: insertError } = await supabase
+                .from('post_product_areas')
+                .insert(assignments);
+
+              if (insertError) {
+                console.error(`  ❌ Insert error: ${insertError.message}`);
+                totalErrors++;
+              } else {
+                totalClassified++;
+                console.log(`  ✅ [${totalClassified}/${posts.length}] Classified with ${assignments.length} areas`);
+              }
             }
+          } else {
+            console.log(`  ⚠️  No areas returned for post`);
+            totalSkipped++;
           }
 
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Wait 3 seconds between API calls to avoid rate limits
+          await new Promise(resolve => setTimeout(resolve, 3000));
         } catch (error) {
+          console.error(`  ❌ Error classifying post: ${error.message}`);
+          totalErrors++;
+
           if (error.message === 'RATE_LIMIT') {
-            console.log(`  ⚠️  Rate limit hit after ${count} posts`);
+            console.log(`  ⚠️  Rate limit hit after ${totalClassified} posts`);
+            console.log(`  💤 Please wait before running again`);
             break;
           }
         }
       }
 
-      console.log(`\n✅ Classification complete: ${count} posts classified\n`);
+      console.log(`\n📈 Classification Summary:`);
+      console.log(`  ✅ Classified: ${totalClassified}`);
+      console.log(`  ⚠️  Skipped: ${totalSkipped}`);
+      console.log(`  ❌ Errors: ${totalErrors}`);
+      console.log(`  📊 Total processed: ${totalClassified + totalSkipped + totalErrors}/${posts.length}\n`);
     } catch (error) {
       console.error('❌ Classification failed:', error.message);
+      console.error(error.stack);
     }
   })();
 
   res.json({
     message: 'Product area classification started in background',
     status: 'running',
-    note: 'Check server logs for progress. This will classify up to 100 posts.',
+    batch_size: batchSize,
+    note: 'Check server logs for progress. Allow ~3 seconds per post.',
     timestamp: new Date().toISOString()
   });
 });
