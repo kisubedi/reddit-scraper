@@ -319,6 +319,48 @@ app.post('/api/admin/classify-product-areas', async (req, res) => {
   });
 });
 
+// Get product area classification status
+app.get('/api/admin/product-area-status', async (req, res) => {
+  try {
+    // Count total posts
+    const { count: totalPosts } = await supabase
+      .from('posts')
+      .select('*', { count: 'exact', head: true });
+
+    // Count posts with product areas
+    const { data: classified } = await supabase
+      .from('post_product_areas')
+      .select('post_id');
+
+    const uniquePosts = new Set(classified.map(c => c.post_id));
+    const classifiedCount = uniquePosts.size;
+
+    // Get breakdown by product area
+    const { data: breakdown } = await supabase
+      .from('post_product_areas')
+      .select('product_area_id, product_areas(name)');
+
+    const areaCount = {};
+    breakdown.forEach(item => {
+      const areaName = item.product_areas?.name;
+      if (areaName) {
+        areaCount[areaName] = (areaCount[areaName] || 0) + 1;
+      }
+    });
+
+    res.json({
+      total_posts: totalPosts,
+      classified_posts: classifiedCount,
+      unclassified_posts: totalPosts - classifiedCount,
+      percentage_complete: ((classifiedCount / totalPosts) * 100).toFixed(1) + '%',
+      breakdown: areaCount,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: { message: error.message } });
+  }
+});
+
 // Manual scraper trigger (for testing)
 app.post('/api/scraper/trigger', async (req, res) => {
   console.log('\n🔄 [MANUAL] Manual scrape triggered via API...');
